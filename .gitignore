@@ -1,0 +1,7 @@
+.DS_Store
+.idea/
+.svn/
+.bem/cache/
+bem-www.iml
+content/*
+node_modules/
