@@ -11,7 +11,6 @@ process.env.YENV = 'production';
 process.env.BEM_I18N_LANGS = 'en ru';
 process.env.SHMAKOWIKI_HL = 'server';
 
-
 MAKE.decl('Arch', {
     getLibraries: function() {
         return {
@@ -65,13 +64,19 @@ MAKE.decl('Arch', {
             }
         };
     },
+
     createCustomNodes: function(common, libs, blocks, bundles) {
         console.log('-- create custom nodes --');
+        console.log('common ' + JSON.stringify(common));
+        console.log('blocks ' + JSON.stringify(blocks));
+        console.log('bundles ' + JSON.stringify(bundles));
+        console.log('libs ' + JSON.stringify(libs));
 
         var node = new (MAKE.getNodeClass('DataNode'))({
-            id: 'pages-generator',
+            id: 'data-generator',
             root: this.root,
-            sources: ['bem-method',
+            sources: [
+                'bem-method',
                 'tools',
                 'bem-tools/docs',
                 'csso/docs',
@@ -86,7 +91,7 @@ MAKE.decl('Arch', {
             ]
         });
 
-        this.arch.setNode(node, bundles, libs);
+        this.arch.setNode(node, libs);
 
         return node.getId();
     }
@@ -105,6 +110,41 @@ MAKE.decl('DataNode', 'Node', {
 
     make: function() {
         console.log('-- data node make start --');
+
+        var _this = this,
+            promices;
+
+        promises = this.sources.reduce(function(res, source) {
+            console.log('res ' + res + ' source ' + JSON.stringify(source));
+
+            var level = BEM.createLevel(PATH.resolve(_this.root, 'content', source));
+
+            return res.concat(level.getItemsByIntrospection()
+                .filter(function(item) {
+                    return BEM.util.bemType(item) === 'block' && ~['md', 'wiki', 'meta.json'].indexOf(item.tech);
+                })
+                .map(function(item) {
+                    console.log('item ' + JSON.stringify(item));
+
+                    var suffix = item.suffix.substr(1),
+                        lang = suffix.split('.').shift(),
+                        page = { block: source.split('/').shift() + '-' + item.block + '-' + lang },
+                        srcPath = PATH.join(level.getPathByObj(item, suffix));
+                        //outPath = PATH.join(bundlesLevel.getPathByObj(page, 'bemjson.js'));
+
+                    console.log('suffix ' + suffix);
+                    console.log('lang ' + lang);
+                    console.log('page ' + JSON.stringify(page));
+                    console.log('srcPath ' + srcPath);
+                    //console.log('outPath ' + outPath);
+
+                }, _this));
+        }, []);
+
+        return Q.all(promises)
+            .then(function() {
+                console.log('-- data node make end --');
+            });
     }
 
 }, {
