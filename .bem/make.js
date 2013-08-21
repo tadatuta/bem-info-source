@@ -130,13 +130,16 @@ MAKE.decl('DataNode', 'Node', {
                         lang = suffix.split('.').shift(),
                         page = { block: source.split('/').shift() + '-' + item.block + '-' + lang },
                         srcPath = PATH.join(level.getPathByObj(item, suffix));
-                        //outPath = PATH.join(bundlesLevel.getPathByObj(page, 'bemjson.js'));
 
                     console.log('suffix ' + suffix);
                     console.log('lang ' + lang);
                     console.log('page ' + JSON.stringify(page));
                     console.log('srcPath ' + srcPath);
-                    //console.log('outPath ' + outPath);
+
+                    return BEM.util.readFile(srcPath)
+                        .then(function(src) {
+                            console.log('src ' + src);
+                        });
 
                 }, _this));
         }, []);
