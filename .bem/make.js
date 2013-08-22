@@ -123,15 +123,13 @@ MAKE.decl('DataNode', 'Node', {
     },
 
     /**
-     * [ description]
-     * @param  {[type]} res    [description]
-     * @param  {[type]} source [description]
-     * @return {[type]}        [description]
+     * Process single source (library)
+     * @param  {Object} res    [description]
+     * @param  {Object} source - library
+     * @return {Object}
      * @private
      */
     _processSource: function(res, source) {
-        //console.log('root ' + JSON.stringify(this.root) + ' source ' + source);
-
         var _this = this,
             level = BEM.createLevel(PATH.resolve(_this.root, 'content', source));
 
@@ -148,11 +146,11 @@ MAKE.decl('DataNode', 'Node', {
     },
 
     /**
-     * [ description]
-     * @param  {[type]} item   [description]
-     * @param  {[type]} level  [description]
-     * @param  {[type]} source [description]
-     * @return {[type]}        [description]
+     * Process single item on level
+     * @param  {Object} item - file
+     * @param  {Object} level - level
+     * @param  {Object} source - library
+     * @return {Object} promise object of Q library
      * @private
      */
     _processItem: function(item, level, source) {
@@ -235,28 +233,6 @@ MAKE.decl('DataNode', 'Node', {
             'html': 'xml',
             'sh': 'bash'
         }[alias] || alias;
-    },
-
-    /**
-     * Returns params for markdown parsing
-     * @param  {Object} langs
-     * @return {Object} - object with params for markdown parsing
-     * @private
-     */
-    _getMarkdownParseParams: function(langs){
-        var _this = this;
-
-        return {
-            gfm: true,
-            pedantic: false,
-            sanitize: false,
-            highlight: function(code, lang) {
-                if (!lang) return code;
-                var res = HL.highlight(_this._translateAlias(lang), code);
-                langs[lang] = res.language;
-                return res.value;
-            }
-        }
     }
 
 }, {
