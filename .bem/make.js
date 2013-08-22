@@ -7,6 +7,8 @@ var BEM = require('bem'),
     HL = require('highlight.js'),
     mkdirp = require('mkdirp');
 
+var OUTPUT_DATA = 'data.json';
+
 process.env.YENV = 'production';
 process.env.BEM_I18N_LANGS = 'en ru';
 process.env.SHMAKOWIKI_HL = 'server';
@@ -33,7 +35,8 @@ MAKE.decl('Arch', {
             },
             'content/csso': {
                 type: 'git',
-                url: 'git://github.com/css/csso.git',
+                //url: 'git://github.com/css/csso.git',
+                url: 'git@github.com:tormozz48/csso.git',
                 npmPackages: false
             },
             'content/borschik': {
@@ -66,11 +69,6 @@ MAKE.decl('Arch', {
     },
 
     createCustomNodes: function(common, libs, blocks, bundles) {
-        console.log('-- create custom nodes --');
-        console.log('common ' + JSON.stringify(common));
-        console.log('blocks ' + JSON.stringify(blocks));
-        console.log('bundles ' + JSON.stringify(bundles));
-        console.log('libs ' + JSON.stringify(libs));
 
         var node = new (MAKE.getNodeClass('DataNode'))({
             id: 'data-generator',
@@ -101,53 +99,149 @@ MAKE.decl('Arch', {
 MAKE.decl('DataNode', 'Node', {
 
     __constructor: function(o) {
-        console.log('-- data node constructor --');
-
         this.root = o.root;
         this.sources = o.sources;
         this.__base(o);
     },
 
+    /**
+     * Make node task
+     * @returns {promise}
+     */
     make: function() {
-        console.log('-- data node make start --');
+        var _this = this;
+
+        _this.outData = null;
+
+        return Q.all(this.sources.reduce(_this._processSource.bind(_this), []))
+            .then(function() {
+                FS.writeFile(PATH.join(_this.root, OUTPUT_DATA), JSON.stringify(_this.outData, null, 4));
+            });
+    },
+
+    /**
+     * [ description]
+     * @param  {[type]} res    [description]
+     * @param  {[type]} source [description]
+     * @return {[type]}        [description]
+     */
+    _processSource: function(res, source) {
+        console.log('root ' + JSON.stringify(this.root) + ' source ' + source);
 
         var _this = this,
-            promices;
+            level = BEM.createLevel(PATH.resolve(_this.root, 'content', source));
 
-        promises = this.sources.reduce(function(res, source) {
-            console.log('res ' + res + ' source ' + JSON.stringify(source));
+        return res.concat(level.getItemsByIntrospection()
+            .filter(function(item) {
+                //console.log('item' + JSON.stringify(item));
+                //return BEM.util.bemType(item) === 'block' && ~['md', 'wiki', 'meta.json'].indexOf(item.tech);
 
-            var level = BEM.createLevel(PATH.resolve(_this.root, 'content', source));
+                return BEM.util.bemType(item) === 'block';
+            })
+            .map(function(item){
+                _this._processItem(item, level, source);
+            }, _this));
+    },
 
-            return res.concat(level.getItemsByIntrospection()
-                .filter(function(item) {
-                    return BEM.util.bemType(item) === 'block' && ~['md', 'wiki', 'meta.json'].indexOf(item.tech);
-                })
-                .map(function(item) {
-                    console.log('item ' + JSON.stringify(item));
+    /**
+     * [ description]
+     * @param  {[type]} item   [description]
+     * @param  {[type]} level  [description]
+     * @param  {[type]} source [description]
+     * @return {[type]}        [description]
+     */
+    _processItem: function(item, level, source) {
+        var suffix = item.suffix.substr(1),
+            lang = suffix.split('.').shift(),
+            name = source.split('/').shift() + '-' + item.block,
+            extention = suffix.split('.').pop(),
+            article;
 
-                    var suffix = item.suffix.substr(1),
-                        lang = suffix.split('.').shift(),
-                        page = { block: source.split('/').shift() + '-' + item.block + '-' + lang },
-                        srcPath = PATH.join(level.getPathByObj(item, suffix));
+        //console.log('lang ' + lang + ' extension ' + extention);
 
-                    console.log('suffix ' + suffix);
-                    console.log('lang ' + lang);
-                    console.log('page ' + JSON.stringify(page));
-                    console.log('srcPath ' + srcPath);
+        this.outData = this.outData || {};
+        this.outData[lang] = this.outData[lang] || {};
+        this.outData[lang][name] = this.outData[lang][name] || {};
 
-                    return BEM.util.readFile(srcPath)
-                        .then(function(src) {
-                            console.log('src ' + src);
-                        });
+        article = this.outData[lang][name];
 
-                }, _this));
-        }, []);
+        return BEM.util.readFile(PATH.join(level.getPathByObj(item, suffix)))
+            .then(function(src) {
+                switch (extention) {
+                    case 'wiki':
+                        article['content'] = shmakowiki.shmakowikiToHtml(src);
+                        break;
 
-        return Q.all(promises)
-            .then(function() {
-                console.log('-- data node make end --');
+                    case 'md':
+                        article['content'] = this.parseMarkdown(src);
+                        break;
+
+                    case 'json':
+                        if(article && article['content']) {
+                            var content = article['content'];
+                            article = JSON.parse(src);
+                            article['content'] = content;
+                        }else{
+                            article = JSON.parse(src);
+                        }
+                        break;
+                }
+
+                this.outData[lang][name] = article;
             });
+    },
+
+    /**
+     * Method for parsing markdown files with articles and documentation
+     * and converting it into html
+     * @param src - markdown content of file
+     * @returns {String} - output string with file content in html format
+     * @private
+     */
+    _parseMarkdown: function(src) {
+        var langs = {};
+        return MD(src, this._getMarkdownParseParams(langs))
+        .replace(/<pre><code class="lang-(.+?)">([\s\S]+?)<\/code><\/pre>/gm,
+                function(m, lang, code) {
+                    return '<pre class="highlight"><code class="highlight__code ' + langs[lang] + '">' + code + '</code></pre>';
+                });
+    },
+
+    /**
+     * Translate aliases
+     * @param {String} alias
+     * @returns {String} translated alias
+     * @private
+     */
+    _translateAlias: function(alias) {
+        return {
+            'js' : 'javascript',
+            'patch': 'diff',
+            'md': 'markdown',
+            'html': 'xml',
+            'sh': 'bash'
+        }[alias] || alias;
+    },
+
+    /**
+     * Returns params for markdown parsing
+     * @param  {Object} langs
+     * @return {Object} - object with params for markdown parsing
+     */
+    _getMarkdownParseParams: function(langs){
+        var _this = this;
+
+        return {
+            gfm: true,
+            pedantic: false,
+            sanitize: false,
+            highlight: function(code, lang) {
+                if (!lang) return code;
+                var res = HL.highlight(_this._translateAlias(lang), code);
+                langs[lang] = res.language;
+                return res.value;
+            }
+        }
     }
 
 }, {
