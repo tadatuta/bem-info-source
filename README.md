@@ -16,14 +16,14 @@ bem-info-source
 
 Элмента спска ресурсов имеет вид:
 
-%%
+```
 'content/articles/bem-articles': {
     type: 'git',
     url: 'git://github.com/bem/bem-articles.git',
     treeish: 'bem-info-data',
     npmPackages: false
 },
-%%
+```
 
 где:
 
@@ -40,7 +40,7 @@ bem-info-source
 
 Формат вывода `data.json`:
 
-%%
+```
 {
     "en": {
         ...
@@ -61,4 +61,4 @@ bem-info-source
         ...
     }
 }
-%%
+```
