@@ -111,11 +111,14 @@ MAKE.decl('DataNode', 'Node', {
     make: function() {
         var _this = this;
 
-        _this.outData = null;
+        _this.outData = {};
 
         return Q.all(this.sources.reduce(_this._processSource.bind(_this), []))
             .then(function() {
-                FS.writeFile(PATH.join(_this.root, OUTPUT_DATA), JSON.stringify(_this.outData, null, 4));
+                FS.writeFile(
+                    PATH.join(_this.root, OUTPUT_DATA),
+                    JSON.stringify(_this.outData, null, 4)
+                );
             });
     },
 
@@ -124,9 +127,10 @@ MAKE.decl('DataNode', 'Node', {
      * @param  {[type]} res    [description]
      * @param  {[type]} source [description]
      * @return {[type]}        [description]
+     * @private
      */
     _processSource: function(res, source) {
-        console.log('root ' + JSON.stringify(this.root) + ' source ' + source);
+        //console.log('root ' + JSON.stringify(this.root) + ' source ' + source);
 
         var _this = this,
             level = BEM.createLevel(PATH.resolve(_this.root, 'content', source));
@@ -139,7 +143,7 @@ MAKE.decl('DataNode', 'Node', {
                 return BEM.util.bemType(item) === 'block';
             })
             .map(function(item){
-                _this._processItem(item, level, source);
+                return _this._processItem(item, level, source);
             }, _this));
     },
 
@@ -149,35 +153,33 @@ MAKE.decl('DataNode', 'Node', {
      * @param  {[type]} level  [description]
      * @param  {[type]} source [description]
      * @return {[type]}        [description]
+     * @private
      */
     _processItem: function(item, level, source) {
-        var suffix = item.suffix.substr(1),
+        var _this = this,
+            suffix = item.suffix.substr(1),
             lang = suffix.split('.').shift(),
             name = source.split('/').shift() + '-' + item.block,
-            extention = suffix.split('.').pop(),
-            article;
+            extention = suffix.split('.').pop();
 
-        //console.log('lang ' + lang + ' extension ' + extention);
-
-        this.outData = this.outData || {};
         this.outData[lang] = this.outData[lang] || {};
         this.outData[lang][name] = this.outData[lang][name] || {};
 
-        article = this.outData[lang][name];
-
         return BEM.util.readFile(PATH.join(level.getPathByObj(item, suffix)))
             .then(function(src) {
+                var article = _this.outData[lang][name];
+
                 switch (extention) {
                     case 'wiki':
                         article['content'] = shmakowiki.shmakowikiToHtml(src);
                         break;
 
                     case 'md':
-                        article['content'] = this.parseMarkdown(src);
+                        article['content'] = _this._parseMarkdown(src);
                         break;
 
                     case 'json':
-                        if(article && article['content']) {
+                        if(article['content']) {
                             var content = article['content'];
                             article = JSON.parse(src);
                             article['content'] = content;
@@ -187,7 +189,7 @@ MAKE.decl('DataNode', 'Node', {
                         break;
                 }
 
-                this.outData[lang][name] = article;
+                _this.outData[lang][name] = article;
             });
     },
 
@@ -199,8 +201,20 @@ MAKE.decl('DataNode', 'Node', {
      * @private
      */
     _parseMarkdown: function(src) {
-        var langs = {};
-        return MD(src, this._getMarkdownParseParams(langs))
+        var _this = this,
+            langs = {};
+
+        return MD(src, {
+            gfm: true,
+            pedantic: false,
+            sanitize: false,
+            highlight: function(code, lang) {
+                if (!lang) return code;
+                var res = HL.highlight(_this._translateAlias(lang), code);
+                langs[lang] = res.language;
+                return res.value;
+            }
+        })
         .replace(/<pre><code class="lang-(.+?)">([\s\S]+?)<\/code><\/pre>/gm,
                 function(m, lang, code) {
                     return '<pre class="highlight"><code class="highlight__code ' + langs[lang] + '">' + code + '</code></pre>';
@@ -227,6 +241,7 @@ MAKE.decl('DataNode', 'Node', {
      * Returns params for markdown parsing
      * @param  {Object} langs
      * @return {Object} - object with params for markdown parsing
+     * @private
      */
     _getMarkdownParseParams: function(langs){
         var _this = this;
