@@ -74,7 +74,7 @@ MAKE.decl('DataNode', 'Node', {
 
         return res.concat(level.getItemsByIntrospection()
             .filter(function(item) {
-                //console.log('item' + JSON.stringify(item));
+                //TODO make this working with tech
                 //return BEM.util.bemType(item) === 'block' && ~['md', 'wiki', 'meta.json'].indexOf(item.tech);
 
                 return BEM.util.bemType(item) === 'block';
@@ -94,40 +94,52 @@ MAKE.decl('DataNode', 'Node', {
      */
     _processItem: function(item, level, source) {
         var _this = this,
-            suffix = item.suffix.substr(1),
-            lang = suffix.split('.').shift(),
             name = source.split('/').shift() + '-' + item.block,
-            extention = suffix.split('.').pop();
+            suffix = item.suffix.substr(1),
+            lang = suffix.substring(0, suffix.indexOf('.')),
+            extention = suffix.substring(suffix.indexOf('.') + 1);
 
         this.outData[lang] = this.outData[lang] || {};
         this.outData[lang][name] = this.outData[lang][name] || {};
 
         return BEM.util.readFile(PATH.join(level.getPathByObj(item, suffix)))
             .then(function(src) {
-                var article = _this.outData[lang][name];
-
-                switch (extention) {
-                    case 'wiki':
-                        article['content'] = shmakowiki.shmakowikiToHtml(src);
-                        break;
-
-                    case 'md':
-                        article['content'] = _this._parseMarkdown(src);
-                        break;
-
-                    case 'json':
-                        if(article['content']) {
-                            var content = article['content'];
-                            article = JSON.parse(src);
-                            article['content'] = content;
-                        }else{
-                            article = JSON.parse(src);
-                        }
-                        break;
-                }
-
-                _this.outData[lang][name] = article;
+                _this.outData[lang][name] = _this._processData(src, extention, _this.outData[lang][name]);
             });
+    },
+
+    /**
+     * Process file content depend on parsed file extention
+     * @param src - file content
+     * @param extention - file extention
+     * @param existed - exited data for lang and article key
+     * @returns {Object} constrained meta-data object with parsed content including
+     * @private
+     */
+    _processData: function(src, extention, existed){
+        var article = existed;
+
+        switch (extention) {
+            case 'wiki':
+                article['content'] = shmakowiki.shmakowikiToHtml(src);
+                break;
+
+            case 'md':
+                article['content'] = this._parseMarkdown(src);
+                break;
+
+            case 'meta.json':
+                if(article['content']) {
+                    var content = article['content'];
+                    article = JSON.parse(src);
+                    article['content'] = content;
+                }else{
+                    article = JSON.parse(src);
+                }
+                break;
+        }
+
+        return article;
     },
 
     /**
