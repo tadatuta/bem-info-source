@@ -2,10 +2,13 @@ var BEM = require('bem'),
     Q = BEM.require('q'),
     PATH = require('path'),
     FS = require('fs'),
+
+    mkdirp = require('mkdirp'),
+    marked = require('marked'),
+    highlight = require('highlight.js'),
     shmakowiki = require('shmakowiki'),
-    MD = require('marked'),
-    HL = require('highlight.js'),
-    mkdirp = require('mkdirp');
+
+    sources = require('./sources.js');
 
 var OUTPUT_DATA = 'data.json';
 
@@ -14,79 +17,15 @@ process.env.BEM_I18N_LANGS = 'en ru';
 process.env.SHMAKOWIKI_HL = 'server';
 
 MAKE.decl('Arch', {
-    getLibraries: function() {
-        return {
-            'content/bem-core': {
-                type: 'git',
-                url: 'git://github.com/bem/bem-core.git',
-                branch: 'v1',
-                npmPackages: false
-            },
-            'content/bem-method': {
-                type: 'git',
-                url: 'git://github.com/bem/bem-method.git',
-                npmPackages: false
-            },
-            'content/bem-tools': {
-                type: 'git',
-                url: 'git://github.com/bem/bem-tools.git',
-                treeish: 'dev',
-                npmPackages: false
-            },
-            'content/csso': {
-                type: 'git',
-                //url: 'git://github.com/css/csso.git',
-                url: 'git@github.com:tormozz48/csso.git',
-                npmPackages: false
-            },
-            'content/borschik': {
-                type: 'git',
-                url: 'git://github.com/bem/borschik.git',
-                npmPackages: false
-            },
-            'content/borschik-server': {
-                type: 'git',
-                url: 'git://github.com/bem/borschik-server.git',
-                treeish: 'bem.info'
-            },
-            'content/articles/bem-articles': {
-                type: 'git',
-                url: 'git://github.com/bem/bem-articles.git',
-                treeish: 'bem-info-data',
-                npmPackages: false
-            },
-            'content/articles/firm-card-story': {
-                type: 'git',
-                url: 'git://github.com/AndreyGeonya/firmCardStory.git',
-                npmPackages: false
-            },
-            'content/blog/bem-news': {
-                type: 'git',
-                url: 'git://github.com/mursya/bem-news.git',
-                npmPackages: false
-            }
-        };
-    },
+
+    getLibraries: sources.getLibraries,
 
     createCustomNodes: function(common, libs, blocks, bundles) {
 
         var node = new (MAKE.getNodeClass('DataNode'))({
             id: 'data-generator',
             root: this.root,
-            sources: [
-                'bem-method',
-                'tools',
-                'bem-tools/docs',
-                'csso/docs',
-                'borschik/docs',
-                'borschik-server/docs',
-                'articles/bem-articles',
-                'articles/firm-card-story/docs',
-                'blog',
-                'blog/bem-news',
-                'bem-core/common.docs',
-                'pages'
-            ]
+            sources: sources.getSources()
         });
 
         this.arch.setNode(node, libs);
@@ -202,13 +141,13 @@ MAKE.decl('DataNode', 'Node', {
         var _this = this,
             langs = {};
 
-        return MD(src, {
+        return marked(src, {
             gfm: true,
             pedantic: false,
             sanitize: false,
             highlight: function(code, lang) {
                 if (!lang) return code;
-                var res = HL.highlight(_this._translateAlias(lang), code);
+                var res = highlight.highlight(_this._translateAlias(lang), code);
                 langs[lang] = res.language;
                 return res.value;
             }
